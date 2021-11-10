@@ -15,13 +15,15 @@
 # [START drive_quickstart]
 from __future__ import print_function
 import os.path
+import io
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseDownload
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
 # If modifying these scopes, delete the file token.json.
-SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
+SCOPES = ['https://www.googleapis.com/auth/drive.file','https://www.googleapis.com/auth/drive.appdata','https://www.googleapis.com/auth/drive.readonly']
 
 def main():
     """Shows basic usage of the Drive v3 API.
@@ -64,6 +66,28 @@ def main():
         print('Files:')
         for item in items:
             print(u'{0} ({1})'.format(item['name'], item['id']))
+     
+    stock_db=[item for item in items if item['name'] == "twstock.db"][0]
+    print("id: {}, fold_name:{}".format(stock_db['name'],stock_db['id']))
+    request = service.files().get_media(fileId=stock_db['id'])
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while done is False:
+        status, done = downloader.next_chunk()
+        print("Download %d%%." % int(status.progress() * 100))
+
+        fh.seek(0)
+        with open(os.path.join(stock_db['name']), 'wb') as f:
+            f.write(fh.read())
+            f.close()
+    response = service.files().list(spaces='appDataFolder',
+                                          fields='nextPageToken, files(id, name)',
+                                          pageSize=10).execute()
+    for file in response.get('files', []):
+        # Process change
+        print('Found file: %s (%s)' % (file.get('name'), file.get('id')))
+
 if __name__ == '__main__':
     main()
 # [END drive_quickstart]
